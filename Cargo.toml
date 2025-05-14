@@ -1,0 +1,17 @@
+[package]
+name = "load-balancer"
+edition = "2024"
+
+[dependencies]
+async-trait = "0.1"
+aws-config = { version = "1.1.7", features = ["behavior-version-latest"] }
+aws-sdk-ec2 = "1.127.0"
+tokio = { version = "1.45.0", features = ["full"] }
+pingora = { version = "0.4.0", features = ["lb"] }
+sfv = "0.10.4"
+log = "0.4.27"
+env_logger = "0.11.8"
+
+# [patch.crates-io]
+# sfv = { git = "https://github.com/undef1nd/sfv.git", tag = "v0.9.4" }
+# cargo update -p sfv@0.11.0 --precise 0.10.4
