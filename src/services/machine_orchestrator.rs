@@ -5,15 +5,26 @@ pub struct Machine {
     pub ip_address: String,
 }
 
-impl From<&Instance> for Machine {
-    fn from(value: &Instance) -> Self {
-        let instance_id = value.instance_id.as_ref().unwrap();
-        let ip_address = value.ipv6_address().unwrap();
+#[derive(Debug)]
+pub struct MachineError(&'static str);
 
-        Self {
+impl TryFrom<&Instance> for Machine {
+    type Error = MachineError;
+
+    fn try_from(value: &Instance) -> Result<Self, MachineError> {
+        let instance_id = value
+            .instance_id
+            .as_ref()
+            .ok_or(MachineError("instance_id missing"))?;
+        let ip_address = value
+            .public_ip_address
+            .as_ref()
+            .ok_or(MachineError("ip_address missing"))?;
+
+        Ok(Self {
             id: instance_id.into(),
             ip_address: ip_address.into(),
-        }
+        })
     }
 }
 

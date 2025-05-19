@@ -1705,6 +1705,7 @@ dependencies = [
  "async-trait",
  "aws-config",
  "aws-sdk-ec2",
+ "base64 0.22.1",
  "env_logger",
  "log",
  "pingora",
