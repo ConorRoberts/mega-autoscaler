@@ -8,7 +8,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use crate::services::machine_orchestrator::MachineOrchestrator;
 
-use super::aws_machine_service::AWSMachineOrchestrator;
+use super::aws_machine_orchestrator::AWSMachineOrchestrator;
 use super::utils::create_ec2_client;
 
 pub struct AWSServiceDiscovery;

@@ -4,4 +4,3 @@
 
 - [] Restart/resume load balancer service
 - [] Rollout service updates
-  - [] 

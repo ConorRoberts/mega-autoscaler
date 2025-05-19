@@ -6,7 +6,7 @@ pub struct Machine {
 }
 
 #[derive(Debug)]
-pub struct MachineError(&'static str);
+pub struct MachineError(pub &'static str);
 
 impl TryFrom<&Instance> for Machine {
     type Error = MachineError;
@@ -40,5 +40,6 @@ pub trait MachineOrchestrator {
 
     async fn create_machine(&self) -> Result<CreateMachineResponse, Self::CreateMachineError>;
 
+    /// Gets a list of running machines that can be used to serve traffic.
     async fn list_machines(&self) -> Result<ListMachinesResponse, Self::ListMachinesError>;
 }
