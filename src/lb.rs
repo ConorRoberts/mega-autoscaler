@@ -37,7 +37,7 @@ impl ProxyHttp for LB {
     }
 
     async fn upstream_peer(&self, _session: &mut Session, _ctx: &mut ()) -> Result<Box<HttpPeer>> {
-        // self.0.update().await.unwrap();
+        self.0.update().await.unwrap();
 
         let upstream = self
             .0

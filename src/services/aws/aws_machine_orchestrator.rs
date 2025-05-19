@@ -7,7 +7,8 @@ use aws_sdk_ec2::types::{
     Filter, InstanceStateName, InstanceType, ResourceType, Tag, TagSpecification,
 };
 use base64::{Engine as _, engine::general_purpose};
-use log::info;
+use log::{error, info};
+use reqwest::StatusCode;
 
 pub struct AWSMachineOrchestrator {
     pub client: ec2::Client,
@@ -20,13 +21,17 @@ fn create_user_data(docker_image: &String) -> String {
         #!/bin/bash
         yum update -y
 
-        docker run -d --restart=always -p 80:80 {}
+        sudo amazon-linux-extras enable docker
+        sudo yum install -y docker
 
-        # Wait for HTTP service to be responsive
-        until curl -s localhost >/dev/null; do
-            sleep 1
-        done
-    ",
+        sudo systemctl start docker
+        sudo systemctl enable docker
+
+        sudo usermod -a -G docker ec2-user
+
+        sudo docker run -d --restart=always -p 80:80 {}
+
+        ",
         docker_image
     );
 
@@ -34,6 +39,11 @@ fn create_user_data(docker_image: &String) -> String {
 
     return encoded;
 }
+
+// # Wait for HTTP service to be responsive
+// until curl -s localhost >/dev/null; do
+//     sleep 1
+// done
 
 impl MachineOrchestrator for AWSMachineOrchestrator {
     type CreateMachineError = String;
@@ -67,6 +77,7 @@ impl MachineOrchestrator for AWSMachineOrchestrator {
             })
             .map_err(|e| e.to_string())?;
 
+        // Wait for instance to be running
         let instance = loop {
             let running_instance = self
                 .client
@@ -90,6 +101,32 @@ impl MachineOrchestrator for AWSMachineOrchestrator {
 
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         };
+
+        let http_client = reqwest::Client::new();
+
+        // Wait for instance to be healthy (200 status code from "/")
+        if let Some(ip) = &instance.public_ip_address {
+            let formatted_domain = format!("http://{}", ip);
+
+            loop {
+                info!("Waiting for machine to be healthy");
+
+                match http_client.get(&formatted_domain).send().await {
+                    Ok(res) => {
+                        let status = res.status();
+
+                        if StatusCode::is_success(&status) {
+                            break;
+                        }
+
+                        info!("Status: {}", status);
+                    }
+                    Err(e) => error!("{:?}", e),
+                }
+
+                tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+            }
+        }
 
         info!("Got new instance");
 

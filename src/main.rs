@@ -20,13 +20,13 @@ fn main() {
     let mut my_server = Server::new(Some(opt)).unwrap();
     my_server.bootstrap();
 
-    let bg = background_service("discovery", AWSServiceDiscovery);
-    let t = bg.task();
-    // let backends = Backends::new(Box::new(AWSServiceDiscovery));
-
-    let upstreams: Vec<&'static str> = vec![];
-    let mut load_balancer = LoadBalancer::try_from_iter(upstreams).unwrap();
-    // load_balancer.update_frequency = Some(Duration::from_secs(5));
+    // let bg = background_service("discovery", AWSServiceDiscovery);
+    // let t = bg.task();
+    let backends = Backends::new(Box::new(AWSServiceDiscovery));
+    // /
+    // let upstreams: Vec<&'static str> = vec![];
+    let mut load_balancer = LoadBalancer::from_backends(backends);
+    load_balancer.update_frequency = Some(Duration::from_secs(5));
 
     let mut lb = http_proxy_service(&my_server.configuration, LB(Arc::new(load_balancer)));
 

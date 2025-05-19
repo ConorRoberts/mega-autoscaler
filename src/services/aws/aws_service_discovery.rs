@@ -5,6 +5,7 @@ use pingora::lb::{Backend, Extensions};
 use pingora::prelude::*;
 use pingora::protocols::l4::socket::SocketAddr;
 use std::collections::{BTreeSet, HashMap};
+use std::str::FromStr;
 
 use crate::services::machine_orchestrator::MachineOrchestrator;
 
@@ -35,25 +36,21 @@ impl ServiceDiscovery for AWSServiceDiscovery {
         //         ext: Extensions::new(),
         //     })
         //     .collect::<BTreeSet<_>>();
-        let backends = machines
+        let mut backends = machines
             .machines
             .into_iter()
-            .map(|x| x.ip_address.parse::<SocketAddr>().unwrap())
-            .map(|addr| Backend {
-                addr,
-                weight: 1,
-                ext: Extensions::new(),
-            })
+            .map(|x| Backend::try_from(x).unwrap())
             .collect::<BTreeSet<_>>();
 
         // Check memory/cpu usage, spin up more machines if necessary
 
-        let should_create_machine = true;
+        let should_create_machine = backends.is_empty();
 
         if should_create_machine {
             match srv.create_machine().await {
                 Ok(m) => {
                     info!("Machine created, id=\"{}\"", m.0.id);
+                    backends.insert(Backend::try_from(m.0).unwrap());
                 }
                 Err(e) => {
                     error!("{:?}", e);
@@ -61,6 +58,15 @@ impl ServiceDiscovery for AWSServiceDiscovery {
             };
         }
 
+        // let b = Backend {
+        //     addr: SocketAddr::from_str("1.1.1.1:80").unwrap(),
+        //     ext: Extensions::new(),
+        //     weight: 1,
+        // };
+
+        // let bs = vec![b].into_iter().collect::<BTreeSet<_>>();
+
         Ok((backends, HashMap::new()))
+        // Ok((bs, HashMap::new()))
     }
 }
