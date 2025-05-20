@@ -1,8 +1,4 @@
 use aws_sdk_ec2::types::Instance;
-use pingora::{
-    lb::{Backend, Extensions},
-    protocols::l4::socket::SocketAddr,
-};
 
 pub struct Machine {
     pub id: String,
@@ -28,22 +24,6 @@ impl TryFrom<&Instance> for Machine {
         Ok(Self {
             id: instance_id.into(),
             ip_address: ip_address.into(),
-        })
-    }
-}
-
-impl TryFrom<Machine> for Backend {
-    type Error = MachineError;
-
-    fn try_from(value: Machine) -> Result<Self, Self::Error> {
-        let ip_with_port = format!("{}:80", value.ip_address);
-
-        Ok(Backend {
-            addr: ip_with_port
-                .parse::<SocketAddr>()
-                .map_err(|_| MachineError("Could not parse IP address"))?,
-            weight: 1,
-            ext: Extensions::new(),
         })
     }
 }

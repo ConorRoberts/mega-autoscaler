@@ -1,11 +1,11 @@
 use async_trait::async_trait;
 use log::{error, info};
+use pingora::lb::Backend;
 use pingora::lb::discovery::ServiceDiscovery;
-use pingora::lb::{Backend, Extensions};
 use pingora::prelude::*;
-use pingora::protocols::l4::socket::SocketAddr;
+use pingora::services::background::BackgroundService;
 use std::collections::{BTreeSet, HashMap};
-use std::str::FromStr;
+use std::time::Duration;
 
 use crate::services::machine_orchestrator::MachineOrchestrator;
 
@@ -13,6 +13,41 @@ use super::aws_machine_orchestrator::AWSMachineOrchestrator;
 use super::utils::create_ec2_client;
 
 pub struct AWSServiceDiscovery;
+
+impl AWSServiceDiscovery {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl BackgroundService for AWSServiceDiscovery {
+    fn start<'life0, 'async_trait>(
+        &'life0 self,
+        shutdown: pingora::server::ShutdownWatch,
+    ) -> ::core::pin::Pin<
+        Box<dyn ::core::future::Future<Output = ()> + ::core::marker::Send + 'async_trait>,
+    >
+    where
+        'life0: 'async_trait,
+        Self: 'async_trait,
+    {
+        let fut = async move {
+            loop {
+                if *shutdown.borrow() {
+                    break;
+                }
+
+                sleep(Duration::from_secs(5)).await;
+
+                self.discover().await.unwrap();
+
+                info!("Polling");
+            }
+        };
+
+        Box::pin(fut)
+    }
+}
 
 #[async_trait]
 impl ServiceDiscovery for AWSServiceDiscovery {
@@ -26,7 +61,11 @@ impl ServiceDiscovery for AWSServiceDiscovery {
             docker_image: "nginx:latest".into(),
         };
 
-        let machines = srv.list_machines().await.unwrap();
+        let machines = srv.list_machines().await;
+
+        if let Err(e) = &machines {
+            error!("{:?}", e);
+        }
 
         // let backends = vec!["1.1.1.1"]
         //     .into_iter()
@@ -37,10 +76,13 @@ impl ServiceDiscovery for AWSServiceDiscovery {
         //     })
         //     .collect::<BTreeSet<_>>();
         let mut backends = machines
+            .unwrap()
             .machines
             .into_iter()
             .map(|x| Backend::try_from(x).unwrap())
             .collect::<BTreeSet<_>>();
+
+        info!("Backends: {}", backends.len());
 
         // Check memory/cpu usage, spin up more machines if necessary
 
