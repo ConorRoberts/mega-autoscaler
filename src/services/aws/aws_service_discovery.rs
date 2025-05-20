@@ -7,16 +7,17 @@ use pingora::services::background::BackgroundService;
 use std::collections::{BTreeSet, HashMap};
 use std::time::Duration;
 
+use crate::services::discovery::ServiceDiscoveryConfig;
 use crate::services::machine_orchestrator::MachineOrchestrator;
 
 use super::aws_machine_orchestrator::AWSMachineOrchestrator;
 use super::utils::create_ec2_client;
 
-pub struct AWSServiceDiscovery;
+pub struct AWSServiceDiscovery(ServiceDiscoveryConfig);
 
 impl AWSServiceDiscovery {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(config: ServiceDiscoveryConfig) -> Self {
+        Self(config)
     }
 }
 
@@ -58,7 +59,7 @@ impl ServiceDiscovery for AWSServiceDiscovery {
 
         let srv = AWSMachineOrchestrator {
             client,
-            docker_image: "nginx:latest".into(),
+            docker_image: self.0.docker_image.clone(),
         };
 
         let machines = srv.list_machines().await;
@@ -67,14 +68,6 @@ impl ServiceDiscovery for AWSServiceDiscovery {
             error!("{:?}", e);
         }
 
-        // let backends = vec!["1.1.1.1"]
-        //     .into_iter()
-        //     .map(|addr| Backend {
-        //         addr: addr.parse::<SocketAddr>().unwrap(),
-        //         weight: 1,
-        //         ext: Extensions::new(),
-        //     })
-        //     .collect::<BTreeSet<_>>();
         let mut backends = machines
             .unwrap()
             .machines
@@ -100,15 +93,6 @@ impl ServiceDiscovery for AWSServiceDiscovery {
             };
         }
 
-        // let b = Backend {
-        //     addr: SocketAddr::from_str("1.1.1.1:80").unwrap(),
-        //     ext: Extensions::new(),
-        //     weight: 1,
-        // };
-
-        // let bs = vec![b].into_iter().collect::<BTreeSet<_>>();
-
         Ok((backends, HashMap::new()))
-        // Ok((bs, HashMap::new()))
     }
 }

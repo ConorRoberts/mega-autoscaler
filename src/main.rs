@@ -6,6 +6,7 @@ use lb::LB;
 use pingora::lb::{Backends, LoadBalancer};
 use pingora::prelude::*;
 use services::aws::aws_service_discovery::AWSServiceDiscovery;
+use services::discovery::ServiceDiscoveryConfig;
 use std::time::Duration;
 
 fn main() {
@@ -16,7 +17,9 @@ fn main() {
     let mut my_server = Server::new(Some(opt)).unwrap();
     my_server.bootstrap();
 
-    let disc = AWSServiceDiscovery::new();
+    let disc = AWSServiceDiscovery::new(ServiceDiscoveryConfig {
+        docker_image: "nginx:latest".into(),
+    });
     let backends = Backends::new(Box::new(disc));
 
     // let upstreams: Vec<&'static str> = vec![];

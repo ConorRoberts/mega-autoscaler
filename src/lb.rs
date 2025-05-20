@@ -1,9 +1,6 @@
 use async_trait::async_trait;
 use log::info;
-use pingora::lb::LoadBalancer;
-use pingora::lb::selection::RoundRobin;
 use pingora::prelude::*;
-use pingora::services::background::BackgroundService;
 use std::sync::Arc;
 
 /// The public host at which the load balancer can be reached.
@@ -13,23 +10,6 @@ static SNI: &str = "0.0.0.0:6188";
 static USE_TLS: bool = false;
 
 pub struct LB(pub Arc<LoadBalancer<RoundRobin>>);
-
-impl BackgroundService for LB {
-    fn start<'life0, 'async_trait>(
-        &'life0 self,
-        shutdown: pingora::server::ShutdownWatch,
-    ) -> ::core::pin::Pin<
-        Box<dyn ::core::future::Future<Output = ()> + ::core::marker::Send + 'async_trait>,
-    >
-    where
-        'life0: 'async_trait,
-        Self: 'async_trait,
-    {
-        let fut = async move { return () };
-
-        Box::pin(fut)
-    }
-}
 
 #[async_trait]
 impl ProxyHttp for LB {
