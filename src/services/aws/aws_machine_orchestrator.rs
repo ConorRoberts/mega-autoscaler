@@ -1,43 +1,16 @@
 use super::super::machine_orchestrator::{
     CreateMachineResponse, ListMachinesResponse, Machine, MachineOrchestrator,
 };
+use super::aws_machine_user_data::AWSMachineUserData;
 use crate::services::aws::aws_ami::Ami;
+use crate::services::aws::utils::{wait_for_healthy_machine, wait_for_running_machine};
 use aws_sdk_ec2 as ec2;
-use aws_sdk_ec2::types::{
-    Filter, InstanceStateName, InstanceType, ResourceType, Tag, TagSpecification,
-};
-use base64::{Engine as _, engine::general_purpose};
-use log::{error, info};
-use reqwest::StatusCode;
+use aws_sdk_ec2::types::{Filter, InstanceType, ResourceType, Tag, TagSpecification};
+use log::info;
 
 pub struct AWSMachineOrchestrator {
     pub client: ec2::Client,
-    pub docker_image: String,
-}
-
-fn create_user_data(docker_image: &String) -> String {
-    let formatted_string = format!(
-        "
-        #!/bin/bash
-        yum update -y
-
-        sudo amazon-linux-extras enable docker
-        sudo yum install -y docker
-
-        sudo systemctl start docker
-        sudo systemctl enable docker
-
-        sudo usermod -a -G docker ec2-user
-
-        sudo docker run -d --restart=always -p 80:80 {}
-
-        ",
-        docker_image
-    );
-
-    let encoded = general_purpose::STANDARD.encode(formatted_string);
-
-    return encoded;
+    pub user_data: AWSMachineUserData,
 }
 
 // # Wait for HTTP service to be responsive
@@ -64,7 +37,7 @@ impl MachineOrchestrator for AWSMachineOrchestrator {
                     .tags(Tag::builder().key("Service").value("load_balancer").build())
                     .build(),
             )
-            .user_data(create_user_data(&self.docker_image))
+            .user_data(self.user_data.to_string())
             .send()
             .await
             .map(|x| {
@@ -78,54 +51,12 @@ impl MachineOrchestrator for AWSMachineOrchestrator {
             .map_err(|e| e.to_string())?;
 
         // Wait for instance to be running
-        let instance = loop {
-            let running_instance = self
-                .client
-                .describe_instances()
-                .instance_ids(&instance_id)
-                .send()
-                .await
-                .map_err(|e| e.to_string())?
-                .reservations
-                .into_iter()
-                .flatten()
-                .flat_map(|r| r.instances.unwrap_or_default())
-                .next()
-                .unwrap();
-
-            if let Some(state) = running_instance.state().unwrap().name() {
-                if *state == InstanceStateName::Running {
-                    break running_instance;
-                }
-            }
-
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        };
+        let instance = wait_for_running_machine(&self.client, &instance_id).await?;
 
         let http_client = reqwest::Client::new();
 
-        // Wait for instance to be healthy (200 status code from "/")
         if let Some(ip) = &instance.public_ip_address {
-            let formatted_domain = format!("http://{}", ip);
-
-            loop {
-                info!("Waiting for machine to be healthy");
-
-                match http_client.get(&formatted_domain).send().await {
-                    Ok(res) => {
-                        let status = res.status();
-
-                        if StatusCode::is_success(&status) {
-                            break;
-                        }
-
-                        info!("Status: {}", status);
-                    }
-                    Err(e) => error!("{:?}", e),
-                }
-
-                tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-            }
+            wait_for_healthy_machine(http_client, ip).await;
         }
 
         info!("Got new instance");

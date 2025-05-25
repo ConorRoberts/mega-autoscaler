@@ -7,8 +7,10 @@ use pingora::services::background::BackgroundService;
 use std::collections::{BTreeSet, HashMap};
 use std::time::Duration;
 
+use crate::services::aws::aws_machine_user_data::AWSMachineUserData;
 use crate::services::discovery::ServiceDiscoveryConfig;
 use crate::services::machine_orchestrator::MachineOrchestrator;
+use crate::services::user_data::MachineUserData;
 
 use super::aws_machine_orchestrator::AWSMachineOrchestrator;
 use super::utils::create_ec2_client;
@@ -59,7 +61,9 @@ impl ServiceDiscovery for AWSServiceDiscovery {
 
         let srv = AWSMachineOrchestrator {
             client,
-            docker_image: self.0.docker_image.clone(),
+            user_data: AWSMachineUserData(MachineUserData {
+                docker_image: self.0.docker_image.clone(),
+            }),
         };
 
         let machines = srv.list_machines().await;
@@ -69,8 +73,8 @@ impl ServiceDiscovery for AWSServiceDiscovery {
         }
 
         let mut backends = machines
-            .unwrap()
-            .machines
+            .map(|x| x.machines)
+            .unwrap_or(vec![])
             .into_iter()
             .map(|x| Backend::try_from(x).unwrap())
             .collect::<BTreeSet<_>>();
